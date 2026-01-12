@@ -1,0 +1,39 @@
+# LangChat Docker 环境配置
+# 此文件用于 Docker 容器内的 Spring Boot 配置
+
+server:
+  port: 8100
+
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://mysql:3306/langchat?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai}
+    username: ${SPRING_DATASOURCE_USERNAME:root}
+    password: ${SPRING_DATASOURCE_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:redis}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      database: ${SPRING_DATA_REDIS_DATABASE:1}
+
+# 文件上传配置 (Docker 环境使用 local 存储)
+langchat:
+  oss:
+    type: local
+    local:
+      # 容器内静态文件目录
+      path: /app/static/
+      # 访问 URL 前缀 (通过 nginx 代理)
+      url: /api/static/
+
+# PgVector 向量数据库配置
+langchat:
+  vector:
+    type: pgvector
+    pgvector:
+      host: ${PGVECTOR_HOST:pgvector}
+      port: ${PGVECTOR_PORT:5432}
+      database: ${PGVECTOR_DATABASE:langchat}
+      user: ${PGVECTOR_USER:root}
+      password: ${PGVECTOR_PASSWORD:root}
