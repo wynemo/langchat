@@ -66,7 +66,8 @@ docker-compose logs -f
 
 - 前端地址: http://localhost
 - 后端 API: http://localhost:8100
-- 默认账号: admin / 123456
+- 管理员账号: administrator / langchat
+- 体验账号: langchat / langchat
 
 ## 单独部署组件
 
