@@ -1,0 +1,148 @@
+# LangChat Docker Compose 部署配置
+# 使用方法: docker-compose up -d
+
+version: '3.8'
+
+services:
+  # ==================== 数据库服务 ====================
+  mysql:
+    image: mysql:8.0
+    container_name: langchat-mysql
+    restart: always
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: langchat
+      TZ: Asia/Shanghai
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docs/langchat.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-root}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - langchat-network
+
+  # ==================== 缓存服务 ====================
+  redis:
+    image: redis:7-alpine
+    container_name: langchat-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - langchat-network
+
+  # ==================== 向量数据库 ====================
+  pgvector:
+    image: registry.cn-beijing.aliyuncs.com/langchat/pgvector
+    container_name: langchat-pgvector
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: langchat
+      POSTGRES_USER: ${PGVECTOR_USER:-root}
+      POSTGRES_PASSWORD: ${PGVECTOR_PASSWORD:-root}
+    volumes:
+      - pgvector_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U root -d langchat"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - langchat-network
+
+  # ==================== 后端服务 ====================
+  langchat-server:
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile
+    image: langchat/server:latest
+    container_name: langchat-server
+    restart: always
+    ports:
+      - "8100:8100"
+    environment:
+      # Spring 配置
+      SPRING_PROFILES_ACTIVE: docker
+      # MySQL 配置
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/langchat?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      # Redis 配置
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_DATABASE: 1
+      # JVM 配置
+      JAVA_OPTS: "-Xms512m -Xmx1024m -XX:+UseG1GC"
+      TZ: Asia/Shanghai
+    volumes:
+      - upload_data:/app/static
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      pgvector:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8100/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+    networks:
+      - langchat-network
+
+  # ==================== 前端服务 ====================
+  langchat-web:
+    build:
+      context: .
+      dockerfile: docker/frontend/Dockerfile
+    image: langchat/web:latest
+    container_name: langchat-web
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - langchat-server
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - langchat-network
+
+# ==================== 网络配置 ====================
+networks:
+  langchat-network:
+    driver: bridge
+
+# ==================== 数据卷配置 ====================
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
+  pgvector_data:
+    driver: local
+  upload_data:
+    driver: local
