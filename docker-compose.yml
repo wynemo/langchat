@@ -16,7 +16,7 @@ services:
       MYSQL_DATABASE: langchat
       TZ: Asia/Shanghai
     volumes:
-      - mysql_data:/var/lib/mysql
+      - ./data/mysql:/var/lib/mysql
       - ./docs/langchat.sql:/docker-entrypoint-initdb.d/init.sql:ro
     command:
       - --character-set-server=utf8mb4
@@ -38,7 +38,7 @@ services:
     ports:
       - "6379:6379"
     volumes:
-      - redis_data:/data
+      - ./data/redis:/data
     command: redis-server --appendonly yes
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -60,7 +60,7 @@ services:
       POSTGRES_USER: ${PGVECTOR_USER:-root}
       POSTGRES_PASSWORD: ${PGVECTOR_PASSWORD:-root}
     volumes:
-      - pgvector_data:/var/lib/postgresql/data
+      - ./data/pgvector:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U root -d langchat"]
       interval: 10s
@@ -94,7 +94,7 @@ services:
       JAVA_OPTS: "-Xms512m -Xmx1024m -XX:+UseG1GC"
       TZ: Asia/Shanghai
     volumes:
-      - upload_data:/app/static
+      - ./data/upload:/app/static
     depends_on:
       mysql:
         condition: service_healthy
@@ -130,13 +130,3 @@ networks:
   langchat-network:
     driver: bridge
 
-# ==================== 数据卷配置 ====================
-volumes:
-  mysql_data:
-    driver: local
-  redis_data:
-    driver: local
-  pgvector_data:
-    driver: local
-  upload_data:
-    driver: local
